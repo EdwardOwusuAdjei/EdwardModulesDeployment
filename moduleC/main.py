@@ -5,7 +5,7 @@ def subtract(a, b):
 def main():
     import sys
     if len(sys.argv) != 3:
-        print(f"Subtract Usage: {sys.argv[0]} <num1> <num2>", file=sys.stderr)
+        print(f"Subtract Usage : {sys.argv[0]} <num1> <num2>", file=sys.stderr)
         sys.exit(0)
     
     num1, num2 = map(float, sys.argv[1:])
