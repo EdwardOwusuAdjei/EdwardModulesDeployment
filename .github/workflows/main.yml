@@ -1,0 +1,57 @@
+name: CI for Assessment Modules Check
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        module: ['moduleA', 'moduleB', 'moduleC']
+
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 10
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.8
+    - name: Check if module changed (Run all if its first push to repo)
+      id: check_module
+      run: |
+        if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
+          git show --name-only --oneline ${{ github.sha }} -- ${{ matrix.module }}/
+          echo "changed=$(if git show --name-only --oneline ${{ github.sha }} -- ${{ matrix.module }}/ | grep -qE '^${{ matrix.module }}(/|$)'; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_ENV
+        else
+          git diff --name-only ${{ github.event.before }}..${{ github.sha }} -- ${{ matrix.module }}/
+          echo "changed=$(if git diff --name-only ${{ github.event.before }}..${{ github.sha }} -- ${{ matrix.module }}/ | grep -qE '^${{ matrix.module }}(/|$)'; then echo 'true'; else echo 'false'; fi)" >> $GITHUB_ENV
+        fi
+    - name: Install dependencies
+      if: env.changed == 'true'
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f ${{ matrix.module }}/requirements.txt ]; then pip install -r ${{ matrix.module }}/requirements.txt; fi
+    - name: Lint with flake8
+      if: env.changed == 'true'
+      run: |
+        pip install flake8
+        flake8 ${{ matrix.module }} --count --select=E9,F63,F7,F82 --show-source --statistics
+    - name: Test with pytest
+      if: env.changed == 'true'
+      run: |
+        pip install pytest
+        pytest ${{ matrix.module }}/tests
+    - id: string
+      if: env.changed == 'true'
+      uses: ASzc/change-string-case-action@v1
+      with:
+          string: ${{  matrix.module  }}
+    - name: Build Docker image (Assessment so I wont push image) And Run Image (to show success)
+      if: env.changed == 'true'
+      run: |
+        if [ -f ${{ matrix.module }}/Dockerfile ]; then docker build -t module/${{ steps.string.outputs.lowercase  }}:${{ github.sha }} ./${{ matrix.module }} ; fi
+        docker run module/${{ steps.string.outputs.lowercase  }}:${{ github.sha }}
